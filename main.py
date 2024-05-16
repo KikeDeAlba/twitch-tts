@@ -2,6 +2,7 @@ from gtts import gTTS
 import subprocess
 import twitchio
 from dotenv import load_dotenv
+import time
 import os
 
 load_dotenv()
@@ -30,16 +31,16 @@ def init():
     bot.run()
 
 class AudioPlayer:
-    def __init__(self):
-        self.is_reading = False
-
-    @classmethod
     def await_play_audio(self, file_path):
-        process = subprocess.Popen(["vlc", "--intf", "dummy", "--play-and-exit", file_path])
-        process.wait()  # Espera a que el proceso de reproducción termine
+        duration = self.get_duration(file_path)
+        subprocess.Popen(["vlc", '--one-instance', file_path])
         print("Audio playback finished.")
+        time.sleep(duration)
 
-    @classmethod
+    def get_duration(self, file_path):
+        duration = subprocess.check_output(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", file_path])
+        return float(duration.decode("utf-8").strip())
+
     def text_to_speech(cls, text: str, lang='en'):
         tts = gTTS(text=text, lang=lang, slow=False)
         tts.save("tts.mp3")
@@ -52,13 +53,14 @@ class TwitchBot(twitchio.Client):
             initial_channels=channels
         )
         self.lang = lang
+        self.audio_player = AudioPlayer()
 
     def __delete_urls_from_message__(self, message):
         return ' '.join(filter(lambda x: 'http' not in x, message.split()))
 
     async def event_message(self, message):
         message.content = self.__delete_urls_from_message__(message.content)
-        AudioPlayer.text_to_speech(message.content, lang=self.lang)
+        self.audio_player.text_to_speech(message.content, lang=self.lang)
 
 if __name__ == '__main__':
     init()
